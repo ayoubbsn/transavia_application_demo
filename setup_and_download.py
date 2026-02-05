@@ -110,9 +110,16 @@ def generate_dummy_data():
             data.append(row)
         
         df = pd.DataFrame(data)
-        save_path = f"data/On_Time_Reporting_{year}.csv"
-        df.to_csv(save_path, index=False)
+        
+        # Save as Parquet for performance
+        save_path = f"data/On_Time_Reporting_{year}.parquet"
+        df.to_parquet(save_path, index=False)
         print(f"Saved {save_path}")
+        
+        # Also clean up old CSVs if they exist to avoid confusion
+        csv_path = f"data/On_Time_Reporting_{year}.csv"
+        if os.path.exists(csv_path):
+            os.remove(csv_path)
 
 if __name__ == "__main__":
     setup_project()

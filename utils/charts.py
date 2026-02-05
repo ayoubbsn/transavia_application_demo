@@ -17,9 +17,10 @@ def create_otp_bar_chart(df: pd.DataFrame) -> go.Figure:
     if df.empty:
         return go.Figure()
 
-    airline_perf = df.groupby('Reporting_Airline').apply(
-        lambda x: ((len(x) - x['Cancelled'].sum() - x['ArrDel15'].sum()) / len(x)) * 100
-    ).reset_index(name='OTP')
+    airline_perf = df.groupby('Reporting_Airline')[['Reporting_Airline', 'Cancelled', 'ArrDel15']].apply(
+        lambda x: pd.Series({'OTP': ((len(x) - x['Cancelled'].sum() - x['ArrDel15'].sum()) / len(x)) * 100}),
+        include_groups=False
+    ).reset_index()
     
     fig = px.bar(
         airline_perf, x='Reporting_Airline', y='OTP',
@@ -81,6 +82,7 @@ def create_seasonal_trend_chart(df: pd.DataFrame) -> go.Figure:
     if df.empty:
         return go.Figure()
         
+    df = df.copy()
     df['Month'] = df['FlightDate'].dt.month_name()
     df['MonthNum'] = df['FlightDate'].dt.month
     
@@ -148,6 +150,7 @@ def create_day_of_week_chart(df: pd.DataFrame) -> go.Figure:
     """Generates bar chart for Average Delay by Day of Week."""
     if df.empty: return go.Figure()
     
+    df = df.copy()
     df['DayOfWeek'] = df['FlightDate'].dt.day_name()
     days_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
     

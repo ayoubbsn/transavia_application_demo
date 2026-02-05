@@ -6,21 +6,52 @@ import os
 def load_data(file_dir="data"):
     """
     Loads aviation data from the data directory.
-    Attempts to read all CSVs matching 'On_Time_Reporting' pattern.
+    Priority: Parquet files -> CSV files.
     """
     all_files = os.listdir(file_dir)
+    
+    # 1. Try Loading Parquet (Much Faster)
+    parquet_files = [f for f in all_files if f.endswith('.parquet')]
+    if parquet_files:
+        dfs = []
+        for f in parquet_files:
+            try:
+                dfs.append(pd.read_parquet(os.path.join(file_dir, f)))
+            except Exception as e:
+                st.error(f"Error reading {f}: {e}")
+        if dfs:
+            return pd.concat(dfs, ignore_index=True)
+
+    # 2. Fallback to CSV (Slower)
     csv_files = [f for f in all_files if f.endswith('.csv') and 'On_Time' in f]
     
     if not csv_files:
-        return pd.DataFrame() # Return empty if no data found yet
+        return pd.DataFrame() 
     
-    # Load all available files
     dfs = []
+    
+    # Optimizing types for CSV Load
+    dtypes = {
+        'DepDelay': 'float32', 'ArrDelay': 'float32', 
+        'Cancelled': 'float32', 'DepDel15': 'float32', 'ArrDel15': 'float32',
+        'Distance': 'float32', 'AirTime': 'float32',
+        'CarrierDelay': 'float32', 'WeatherDelay': 'float32', 
+        'NASDelay': 'float32', 'SecurityDelay': 'float32', 'LateAircraftDelay': 'float32'
+    }
+    
+    cols_to_keep = [
+        'FlightDate', 'Reporting_Airline', 'Tail_Number', 'Flight_Number_Reporting_Airline',
+        'Origin', 'OriginCityName', 'OriginState',
+        'Dest', 'DestCityName', 'DestState',
+        'DepDelay', 'DepDel15', 'ArrDelay', 'ArrDel15', 'Cancelled', 'CancellationCode',
+        'AirTime', 'Distance', 'CarrierDelay', 'WeatherDelay', 'NASDelay', 'SecurityDelay', 'LateAircraftDelay'
+    ]
+
     for f in csv_files:
         p = os.path.join(file_dir, f)
         try:
-            # Read header first to check columns if needed, but simple read is fine for now
-            d = pd.read_csv(p, low_memory=False)
+            # Only read necessary columns and enforce types
+            d = pd.read_csv(p, usecols=lambda c: c in cols_to_keep, dtype=dtypes, low_memory=False)
             dfs.append(d)
         except Exception as e:
             st.error(f"Error reading {f}: {e}")
@@ -31,29 +62,9 @@ def load_data(file_dir="data"):
     try:
         df = pd.concat(dfs, ignore_index=True)
         
-        # Select key columns to reduce memory usage
-        
-        # Select key columns to reduce memory usage
-        cols_to_keep = [
-            'FlightDate', 'Reporting_Airline', 'Tail_Number', 'Flight_Number_Reporting_Airline',
-            'Origin', 'OriginCityName', 'OriginState',
-            'Dest', 'DestCityName', 'DestState',
-            'DepDelay', 'DepDel15', 'ArrDelay', 'ArrDel15', 'Cancelled', 'CancellationCode',
-            'AirTime', 'Distance', 'CarrierDelay', 'WeatherDelay', 'NASDelay', 'SecurityDelay', 'LateAircraftDelay'
-        ]
-        
-        # Filter columns that actually exist
-        cols_to_keep = [c for c in cols_to_keep if c in df.columns]
-        df = df[cols_to_keep]
-
-        # Convert Date
+        # Convert Date separately
         if 'FlightDate' in df.columns:
             df['FlightDate'] = pd.to_datetime(df['FlightDate'])
-        
-        # Create 'Airline' readable name mapping (Simplified)
-        # In a real app we'd load L_UNIQUE_CARRIERS.csv lookup, 
-        # but for now we rely on the code or a simple map if needed.
-        # df['AirlineName'] = df['Reporting_Airline'] # Placeholder
         
         return df
         
